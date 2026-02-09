@@ -2,8 +2,6 @@ import { Google } from 'arctic';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 
-const baseUrl = dev ? 'http://localhost:5173' : (env.ORIGIN || 'http://localhost:5173');
-
 export function getGoogleProvider() {
 	const clientId = env.GOOGLE_CLIENT_ID;
 	const clientSecret = env.GOOGLE_CLIENT_SECRET;
@@ -11,6 +9,10 @@ export function getGoogleProvider() {
 	if (!clientId || !clientSecret) {
 		throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in environment variables');
 	}
+
+	// Calculate baseUrl at request time, not module load time
+	const baseUrl = dev ? 'http://localhost:5173' : (env.ORIGIN || 'http://localhost:5173');
+	console.log('OAuth baseUrl:', baseUrl);
 
 	return new Google(
 		clientId,
