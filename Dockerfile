@@ -16,6 +16,9 @@ COPY . .
 # Create data directory for SQLite (needed during build for SvelteKit prerendering)
 RUN mkdir -p /app/data
 
+# Set DATABASE_URL for build process
+ENV DATABASE_URL=/app/data/sqlite.db
+
 # Generate database migrations and build
 RUN npm run db:generate
 RUN npm run db:push
