@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { getGoogleProvider } from '$lib/server/auth/google';
 import { generateState, generateCodeVerifier } from 'arctic';
+import { dev } from '$app/environment';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ cookies }) => {
@@ -12,7 +13,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
 
 	cookies.set('google_oauth_state', state, {
 		path: '/',
-		secure: false, // set to true in production
+		secure: !dev,
 		httpOnly: true,
 		maxAge: 60 * 10, // 10 minutes
 		sameSite: 'lax'
@@ -20,7 +21,7 @@ export const GET: RequestHandler = async ({ cookies }) => {
 
 	cookies.set('google_code_verifier', codeVerifier, {
 		path: '/',
-		secure: false, // set to true in production
+		secure: !dev,
 		httpOnly: true,
 		maxAge: 60 * 10, // 10 minutes
 		sameSite: 'lax'
