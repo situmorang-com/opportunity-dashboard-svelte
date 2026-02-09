@@ -13,8 +13,12 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Create data directory for SQLite (needed during build for SvelteKit prerendering)
+RUN mkdir -p /app/data
+
 # Generate database migrations and build
 RUN npm run db:generate
+RUN npm run db:push
 RUN npm run build
 
 # Production stage
