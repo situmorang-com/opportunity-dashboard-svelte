@@ -37,21 +37,24 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/src/lib/server/db/schema.ts ./src/lib/server/db/schema.ts
 
-# Copy seed script
-COPY --from=builder /app/src/lib/server/db/seed.ts ./src/lib/server/db/seed.ts
+# Copy startup script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:/app/data/sqlite.db
+ENV DATABASE_URL=/app/data/sqlite.db
 ENV ORIGIN=http://localhost:3000
 
 # Expose port
 EXPOSE 3000
 
 # Health check - use 127.0.0.1 to force IPv4 (wget tries IPv6 first with localhost)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000 || exit 1
 
-# Start the application
-CMD ["node", "build"]
+# Start the application using entrypoint script
+CMD ["/app/docker-entrypoint.sh"]
