@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db, opportunities, activities, stages } from '$lib/server/db';
 import { eq } from 'drizzle-orm';
+import { validateStageTransition } from '$lib/server/opportunity-stage-guardrails';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
@@ -37,6 +38,18 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 			return json({ error: 'Stage not found' }, { status: 404 });
 		}
 
+		const guardrail = validateStageTransition(opportunity, oldStage, newStage);
+		if (!guardrail.allowed) {
+			return json(
+				{
+					error: guardrail.message || 'Stage transition blocked by required fields',
+					code: 'STAGE_REQUIREMENTS_NOT_MET',
+					missingFields: guardrail.missingFields
+				},
+				{ status: 400 }
+			);
+		}
+
 		// Update the opportunity
 		const updateData: Record<string, unknown> = {
 			stageId,
@@ -64,7 +77,10 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 			title: `Moved from ${oldStage?.name || 'Unknown'} to ${newStage.name}`
 		});
 
-		return json({ success: true });
+		// If moving to Discovery (order 2), suggest redirect to assessment page
+		const redirectTo = newStage.order === 2 ? `/opportunities/${opportunityId}/assessment` : undefined;
+
+		return json({ success: true, redirectTo });
 	} catch (error) {
 		console.error('Error updating opportunity stage:', error);
 		return json({ error: 'Failed to update stage' }, { status: 500 });

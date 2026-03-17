@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ==================== USERS & AUTH ====================
@@ -126,6 +126,12 @@ export const opportunities = sqliteTable("opportunities", {
   // Lead & Partner Info
   leadSource: text("lead_source"),
   partnerPic: text("partner_pic"),
+  partnerOrg: text("partner_org"),
+  microsoftSellerName: text("microsoft_seller_name"),
+  microsoftSellerEmail: text("microsoft_seller_email"),
+  coSellStatus: text("co_sell_status"),
+  fundingStatus: text("funding_status"),
+  coSellNotes: text("co_sell_notes"),
 
   // Authority (Decision Maker)
   authorityName: text("authority_name"),
@@ -233,6 +239,91 @@ export const contactActivities = sqliteTable("contact_activities", {
   ),
 });
 
+// ==================== DISCOVERY ASSESSMENTS ====================
+
+export const discoveryAssessments = sqliteTable("discovery_assessments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  opportunityId: integer("opportunity_id")
+    .notNull()
+    .references(() => opportunities.id, { onDelete: "cascade" })
+    .unique(),
+
+  // Technical Assessment
+  currentInfrastructure: text("current_infrastructure"),
+  dataSources: text("data_sources", { mode: "json" }).$type<string[]>(),
+  integrationPoints: text("integration_points"),
+  securityRequirements: text("security_requirements"),
+  complianceNeeds: text("compliance_needs"),
+  technicalReadiness: integer("technical_readiness"), // 1-5 scale
+
+  // Business Case
+  businessObjective: text("business_objective"),
+  expectedRoi: text("expected_roi"),
+  successMetrics: text("success_metrics"),
+  budgetRange: text("budget_range"),
+  budgetApproved: integer("budget_approved", { mode: "boolean" }).default(false),
+  stakeholderAlignment: text("stakeholder_alignment"),
+
+  // Project Scope
+  deliverables: text("deliverables", { mode: "json" }).$type<string[]>(),
+  outOfScope: text("out_of_scope"),
+  assumptions: text("assumptions"),
+  constraints: text("constraints"),
+
+  // Risk Assessment
+  risks: text("risks", { mode: "json" }).$type<Array<{
+    description: string;
+    impact: "low" | "medium" | "high";
+    likelihood: "low" | "medium" | "high";
+    mitigation: string;
+  }>>(),
+
+  // Resource Requirements
+  requiredSkills: text("required_skills"),
+  teamSize: text("team_size"),
+  externalResources: text("external_resources"),
+
+  // Discovery Checklist
+  checklist: text("checklist", { mode: "json" }).$type<Record<string, boolean>>(),
+
+  // Timestamps
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+});
+
+// ==================== WORKLIST ACTIONS ====================
+
+export const worklistActions = sqliteTable(
+  "worklist_actions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    itemId: text("item_id").notNull(),
+    status: text("status", { enum: ["open", "done", "snoozed"] })
+      .notNull()
+      .default("open"),
+    snoozedUntil: text("snoozed_until"),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => ({
+    userItemUnique: uniqueIndex("worklist_actions_user_item_unique").on(
+      table.userId,
+      table.itemId,
+    ),
+  }),
+);
+
 // ==================== RELATIONS ====================
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -240,6 +331,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   opportunities: many(opportunities),
   activities: many(activities),
   contactActivities: many(contactActivities),
+  worklistActions: many(worklistActions),
   clients: many(clients),
 }));
 
@@ -287,6 +379,7 @@ export const opportunitiesRelations = relations(
       references: [users.id],
     }),
     activities: many(activities),
+    discoveryAssessment: many(discoveryAssessments),
   }),
 );
 
@@ -312,6 +405,20 @@ export const contactActivitiesRelations = relations(contactActivities, ({ one })
   }),
 }));
 
+export const discoveryAssessmentsRelations = relations(discoveryAssessments, ({ one }) => ({
+  opportunity: one(opportunities, {
+    fields: [discoveryAssessments.opportunityId],
+    references: [opportunities.id],
+  }),
+}));
+
+export const worklistActionsRelations = relations(worklistActions, ({ one }) => ({
+  user: one(users, {
+    fields: [worklistActions.userId],
+    references: [users.id],
+  }),
+}));
+
 // ==================== TYPES ====================
 
 export type User = typeof users.$inferSelect;
@@ -328,6 +435,10 @@ export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type ContactActivity = typeof contactActivities.$inferSelect;
 export type NewContactActivity = typeof contactActivities.$inferInsert;
+export type WorklistAction = typeof worklistActions.$inferSelect;
+export type NewWorklistAction = typeof worklistActions.$inferInsert;
+export type DiscoveryAssessment = typeof discoveryAssessments.$inferSelect;
+export type NewDiscoveryAssessment = typeof discoveryAssessments.$inferInsert;
 
 // ==================== CONSTANTS ====================
 

@@ -3,6 +3,7 @@
 	import { OpportunityForm } from '$lib/components/forms';
 	import { format, formatDistanceToNow } from 'date-fns';
 	import { goto } from '$app/navigation';
+	import { calculateFabricQualificationScore } from '$lib/utils/fabric-qualification';
 
 	let { data } = $props();
 
@@ -10,6 +11,10 @@
 	let showWonModal = $state(false);
 	let showLostModal = $state(false);
 	let isSubmitting = $state(false);
+	let quickSaving = $state(false);
+	let quickNextStep = $state('');
+	let quickExpectedCloseDate = $state('');
+	let quickProbability = $state('');
 
 	// Destructure data reactively
 	const opportunity = $derived(data.opportunity);
@@ -21,6 +26,27 @@
 	const clients = $derived(data.clients);
 	const users = $derived(data.users);
 	const contacts = $derived(data.contacts);
+	const fabricQualification = $derived(
+		calculateFabricQualificationScore({
+			fabricWorkloads: opportunity.fabricWorkloads,
+			migrationSource: opportunity.migrationSource,
+			capacityUnits: opportunity.capacityUnits,
+			authorityName: opportunity.authorityName,
+			championName: opportunity.championName,
+			timeline: opportunity.timeline,
+			immediateNextStep: opportunity.immediateNextStep,
+			competitor: opportunity.competitor,
+			value: opportunity.value,
+			leadSource: opportunity.leadSource,
+			coSellStatus: opportunity.coSellStatus
+		})
+	);
+
+	$effect(() => {
+		quickNextStep = opportunity.immediateNextStep || '';
+		quickExpectedCloseDate = opportunity.expectedCloseDate || '';
+		quickProbability = String(opportunity.probability ?? 0);
+	});
 
 	// Calculated fields
 	const expectedRevenue = $derived((opportunity.value || 0) * (opportunity.probability || 0) / 100);
@@ -190,6 +216,28 @@
 			isSubmitting = false;
 		}
 	}
+
+	async function saveQuickUpdate(payload: Record<string, string | number | null>) {
+		quickSaving = true;
+		try {
+			const response = await fetch(`/api/opportunities/${opportunity.id}/quick-update`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Failed to update opportunity');
+			}
+
+			window.location.reload();
+		} catch (err) {
+			alert(err instanceof Error ? err.message : 'Failed to update opportunity');
+		} finally {
+			quickSaving = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -285,6 +333,9 @@
 				{/if}
 				<span class="px-3 py-1 rounded-full text-sm font-medium {dealHealth().bg}">
 					{dealHealth().status}
+				</span>
+				<span class="px-3 py-1 rounded-full text-sm font-medium bg-white/15">
+					Fabric Fit: {fabricQualification.score}
 				</span>
 			</div>
 			<p class="text-indigo-200">
@@ -422,6 +473,29 @@
 		</div>
 	</Card>
 
+	<!-- Discovery Assessment Link -->
+	{#if stage && stage.order >= 2 && !stage.isWon && !stage.isLost}
+		<button
+			onclick={() => goto(`/opportunities/${opportunity.id}/assessment`)}
+			class="w-full bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-4 mb-6 flex items-center justify-between hover:from-indigo-100 hover:to-purple-100 transition-colors text-left"
+		>
+			<div class="flex items-center gap-3">
+				<div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+					<svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+					</svg>
+				</div>
+				<div>
+					<p class="font-medium text-indigo-900">Discovery Assessment</p>
+					<p class="text-sm text-indigo-600">Technical assessment, business case, project scoping & risk analysis</p>
+				</div>
+			</div>
+			<svg class="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+			</svg>
+		</button>
+	{/if}
+
 	<!-- Next Steps Callout -->
 	{#if opportunity.immediateNextStep && !stage?.isWon && !stage?.isLost}
 		<div class="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5 mb-6">
@@ -437,6 +511,73 @@
 				</div>
 			</div>
 		</div>
+	{/if}
+
+	<!-- Quick Inline Updates -->
+	{#if !stage?.isWon && !stage?.isLost}
+		<Card class="mb-6">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="font-semibold text-gray-900">Quick Updates</h3>
+				<span class="text-xs text-gray-500">Inline edit key forecast and execution fields</span>
+			</div>
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div class="md:col-span-2">
+					<label for="quickNextStep" class="block text-sm font-medium text-gray-700 mb-1">Immediate Next Step</label>
+					<div class="flex gap-2">
+						<input
+							id="quickNextStep"
+							type="text"
+							bind:value={quickNextStep}
+							class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+							placeholder="Define next execution step"
+						/>
+						<Button type="button" onclick={() => saveQuickUpdate({ immediateNextStep: quickNextStep })} disabled={quickSaving}>
+							Save
+						</Button>
+					</div>
+				</div>
+				<div>
+					<label for="quickProbability" class="block text-sm font-medium text-gray-700 mb-1">Probability (%)</label>
+					<div class="flex gap-2">
+						<input
+							id="quickProbability"
+							type="number"
+							min="0"
+							max="100"
+							bind:value={quickProbability}
+							class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						/>
+						<Button
+							type="button"
+							variant="secondary"
+							onclick={() => saveQuickUpdate({ probability: Number(quickProbability) })}
+							disabled={quickSaving}
+						>
+							Save
+						</Button>
+					</div>
+				</div>
+				<div>
+					<label for="quickExpectedCloseDate" class="block text-sm font-medium text-gray-700 mb-1">Expected Close Date</label>
+					<div class="flex gap-2">
+						<input
+							id="quickExpectedCloseDate"
+							type="date"
+							bind:value={quickExpectedCloseDate}
+							class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						/>
+						<Button
+							type="button"
+							variant="secondary"
+							onclick={() => saveQuickUpdate({ expectedCloseDate: quickExpectedCloseDate || null })}
+							disabled={quickSaving}
+						>
+							Save
+						</Button>
+					</div>
+				</div>
+			</div>
+		</Card>
 	{/if}
 
 	<!-- Main Content Grid -->
@@ -494,6 +635,22 @@
 							<span class="text-sm font-medium text-gray-900">{opportunity.partnerPic || '-'}</span>
 						</div>
 						<div class="flex justify-between">
+							<span class="text-sm text-gray-500">Partner Org</span>
+							<span class="text-sm font-medium text-gray-900">{opportunity.partnerOrg || '-'}</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-sm text-gray-500">Microsoft Seller</span>
+							<span class="text-sm font-medium text-gray-900">{opportunity.microsoftSellerName || '-'}</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-sm text-gray-500">Co-sell Status</span>
+							<span class="text-sm font-medium text-gray-900">{opportunity.coSellStatus || '-'}</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-sm text-gray-500">Funding Status</span>
+							<span class="text-sm font-medium text-gray-900">{opportunity.fundingStatus || '-'}</span>
+						</div>
+						<div class="flex justify-between">
 							<span class="text-sm text-gray-500">Engagement Team</span>
 							<span class="text-sm font-medium text-gray-900">{opportunity.engagementTeam || '-'}</span>
 						</div>
@@ -501,9 +658,39 @@
 							<span class="text-sm text-gray-500">Timeline</span>
 							<span class="text-sm font-medium text-gray-900">{opportunity.timeline || '-'}</span>
 						</div>
+						{#if opportunity.coSellNotes}
+							<div class="pt-1 border-t border-gray-100">
+								<p class="text-sm text-gray-500 mb-1">Co-sell Notes</p>
+								<p class="text-sm text-gray-900">{opportunity.coSellNotes}</p>
+							</div>
+						{/if}
 					</div>
 				</Card>
 			</div>
+
+			<Card>
+				<h3 class="font-semibold text-gray-900 mb-4">Fabric Qualification</h3>
+				<div class="flex items-center justify-between mb-3">
+					<div>
+						<p class="text-sm text-gray-500">Qualification Score</p>
+						<p class="text-2xl font-bold text-gray-900">{fabricQualification.score}/100</p>
+					</div>
+					<Badge variant={fabricQualification.band === 'high' ? 'green' : fabricQualification.band === 'medium' ? 'yellow' : 'red'}>
+						{fabricQualification.band.toUpperCase()}
+					</Badge>
+				</div>
+				<ul class="space-y-2">
+					{#each fabricQualification.reasons as reason}
+						<li class="text-sm text-gray-700 flex items-start gap-2">
+							<span class="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+							<span>{reason}</span>
+						</li>
+					{/each}
+					{#if fabricQualification.reasons.length === 0}
+						<li class="text-sm text-gray-500">Add workload, sponsor, timeline, and next step details to improve qualification confidence.</li>
+					{/if}
+				</ul>
+			</Card>
 
 			<!-- Fabric Details -->
 			<Card>
