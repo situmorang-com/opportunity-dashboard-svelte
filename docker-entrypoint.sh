@@ -4,15 +4,19 @@ set -e
 # Create data directory if it doesn't exist
 mkdir -p /app/data
 
-# Initialize database if it doesn't exist
+# Create database file if it doesn't exist
 if [ ! -f /app/data/sqlite.db ]; then
-    echo "Initializing database..."
-    # Create empty database file
+    echo "Creating new database..."
     touch /app/data/sqlite.db
-    # Run migrations using drizzle-kit
-    npx drizzle-kit push --config=drizzle.config.ts
-    echo "Database initialized."
 fi
+
+# Always apply migrations on startup (idempotent - safe to run every time)
+echo "Applying database migrations..."
+npx drizzle-kit push --config=drizzle.config.ts
+echo "Migrations complete."
+
+# Ensure default data exists (idempotent) without TS runtime
+node /app/scripts/seed-prod.js
 
 # Start the application
 exec node build
