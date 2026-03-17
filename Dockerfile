@@ -16,12 +16,10 @@ COPY . .
 # Create data directory for SQLite (needed during build for SvelteKit prerendering)
 RUN mkdir -p /app/data
 
-# Set DATABASE_URL for build process
+# Set DATABASE_URL for build process (used by SvelteKit during build)
 ENV DATABASE_URL=/app/data/sqlite.db
 
-# Generate database migrations and build
-RUN npm run db:generate
-RUN npm run db:push
+# Build the application (migrations run at container startup via entrypoint, not here)
 RUN npm run build
 
 # Production stage
@@ -31,6 +29,7 @@ WORKDIR /app
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
+RUN mkdir -p /app/src/lib/server/db
 
 # Copy built application
 COPY --from=builder /app/build ./build
@@ -39,6 +38,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /app/src/lib/server/db/schema.ts ./src/lib/server/db/schema.ts
+COPY --from=builder /app/scripts/seed-prod.js ./scripts/seed-prod.js
 
 # Copy startup script
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
