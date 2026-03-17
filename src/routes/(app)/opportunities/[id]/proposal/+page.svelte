@@ -1,6 +1,7 @@
 <script lang="ts">
   let { data } = $props();
   const { opportunity, client, stage, owner, generatedDate } = data;
+  let downloading = $state<'docx' | 'pptx' | null>(null);
 
   function fmt(v: number) {
     if (!v) return '$0';
@@ -8,6 +9,31 @@
   }
 
   function printPage() { window.print(); }
+
+  async function downloadProposal(format: 'docx' | 'pptx') {
+    downloading = format;
+    try {
+      const res = await fetch(`/api/opportunities/${opportunity.id}/proposal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format }),
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${opportunity.title.replace(/\s+/g, '_')}_Proposal.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      alert(`Failed to download ${format.toUpperCase()}`);
+    } finally {
+      downloading = null;
+    }
+  }
 
   const workloads = Array.isArray(opportunity.fabricWorkloads) ? opportunity.fabricWorkloads :
     (typeof opportunity.fabricWorkloads === 'string' ? JSON.parse(opportunity.fabricWorkloads || '[]') : []);
@@ -32,6 +58,12 @@
   </a>
   <button onclick={printPage} class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow hover:bg-indigo-700">
     🖨️ Print / Save PDF
+  </button>
+  <button onclick={() => downloadProposal('docx')} disabled={downloading} class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow hover:bg-blue-700 disabled:opacity-50">
+    {downloading === 'docx' ? '⏳' : '📄'} Word
+  </button>
+  <button onclick={() => downloadProposal('pptx')} disabled={downloading} class="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg shadow hover:bg-orange-700 disabled:opacity-50">
+    {downloading === 'pptx' ? '⏳' : '🎬'} PowerPoint
   </button>
 </div>
 
