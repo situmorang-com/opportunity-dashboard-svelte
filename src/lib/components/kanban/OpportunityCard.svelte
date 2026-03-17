@@ -20,6 +20,12 @@
 		};
 		return variants[workload] || 'blue';
 	}
+
+	function getHealthVariant(status?: string): 'green' | 'yellow' | 'red' {
+		if (status === 'healthy') return 'green';
+		if (status === 'watch') return 'yellow';
+		return 'red';
+	}
 </script>
 
 <button
@@ -50,6 +56,26 @@
 			{opportunity.probability}%
 		</span>
 	</div>
+
+	{#if opportunity.health}
+		<div class="mb-3 space-y-2">
+			<div class="flex items-center justify-between gap-2">
+				<Badge variant={getHealthVariant(opportunity.health.status)} class="text-[11px]">
+					Health {opportunity.health.score}
+				</Badge>
+				{#if opportunity.health.stale}
+					<span class="text-[11px] font-medium text-red-600">
+						Stale ({opportunity.health.daysSinceUpdate}d)
+					</span>
+				{/if}
+			</div>
+			{#if opportunity.health.reasons.length > 0}
+				<p class="text-[11px] text-gray-500 line-clamp-2">
+					{opportunity.health.reasons.join(' • ')}
+				</p>
+			{/if}
+		</div>
+	{/if}
 
 	{#if opportunity.fabricWorkloads && opportunity.fabricWorkloads.length > 0}
 		<div class="flex flex-wrap gap-1 mb-3">

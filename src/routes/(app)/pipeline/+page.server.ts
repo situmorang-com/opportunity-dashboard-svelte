@@ -1,5 +1,6 @@
 import { db, stages, opportunities, clients, users } from '$lib/server/db';
 import { eq } from 'drizzle-orm';
+import { calculateDealHealth } from '$lib/server/deal-health';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -20,6 +21,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 				capacityUnits: opportunities.capacityUnits,
 				migrationSource: opportunities.migrationSource,
 				competitor: opportunities.competitor,
+				authorityName: opportunities.authorityName,
+				championName: opportunities.championName,
+				immediateNextStep: opportunities.immediateNextStep,
+				timeline: opportunities.timeline,
+				wonDate: opportunities.wonDate,
+				lostDate: opportunities.lostDate,
 				createdAt: opportunities.createdAt,
 				updatedAt: opportunities.updatedAt,
 				client: {
@@ -45,10 +52,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.from(users)
 	]);
 
+	const stageById = new Map(allStages.map((stage) => [stage.id, stage]));
+	const opportunitiesWithHealth = allOpportunities.map((opp) => ({
+		...opp,
+		health: calculateDealHealth(opp, stageById.get(opp.stageId))
+	}));
+
 	return {
 		user: locals.user,
 		stages: allStages,
-		opportunities: allOpportunities,
+		opportunities: opportunitiesWithHealth,
 		clients: allClients,
 		users: allUsers
 	};

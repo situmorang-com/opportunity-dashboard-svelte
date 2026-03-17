@@ -9,7 +9,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=file:/app/data/sqlite.db
+      - DATABASE_URL=/app/data/sqlite.db
       - ORIGIN=${ORIGIN:-http://localhost:3000}
     volumes:
       - sqlite_data:/app/data

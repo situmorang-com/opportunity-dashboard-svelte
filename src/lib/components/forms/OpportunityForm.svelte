@@ -6,7 +6,10 @@
 		MIGRATION_SOURCES,
 		COMPETITORS,
 		PROJECT_DURATIONS,
-		LEAD_SOURCES
+		LEAD_SOURCES,
+		CO_SELL_STATUSES,
+		FUNDING_STATUSES,
+		SOLUTION_PACKAGE_TEMPLATES
 	} from '$lib/constants';
 	import type { Stage, Client, User, Opportunity, ClientContact } from '$lib/server/db/schema';
 
@@ -28,6 +31,13 @@
 	let selectedClientId = $state<string>(opportunity?.clientId != null ? String(opportunity.clientId) : '');
 	let clientContacts = $state<ClientContact[]>(contacts);
 	let loadingContacts = $state(false);
+	let selectedTemplateId = $state('');
+	let timelineValue = $state(opportunity?.timeline || '');
+	let immediateNextStepValue = $state(opportunity?.immediateNextStep || '');
+	let objectivesValue = $state(opportunity?.objectives || '');
+	let initiativesValue = $state(opportunity?.initiatives || '');
+	let engagementSummaryValue = $state(opportunity?.engagementSummary || '');
+	let projectDurationValue = $state(opportunity?.projectDuration || '');
 
 	// Authority fields (auto-filled from contact or manual)
 	let authorityName = $state(opportunity?.authorityName || '');
@@ -102,6 +112,22 @@
 		}
 	}
 
+	function applySolutionTemplate() {
+		const template = SOLUTION_PACKAGE_TEMPLATES.find((t) => t.id === selectedTemplateId);
+		if (!template) return;
+
+		selectedWorkloads = [...new Set([...(selectedWorkloads || []), ...template.workloads])];
+		if (!projectDurationValue && template.projectDuration) projectDurationValue = template.projectDuration;
+		if (!objectivesValue && template.objectives) objectivesValue = template.objectives;
+		if (!initiativesValue && template.initiatives) initiativesValue = template.initiatives;
+		if (!immediateNextStepValue && template.immediateNextStep) {
+			immediateNextStepValue = template.immediateNextStep;
+		}
+		if (!engagementSummaryValue && template.engagementSummary) {
+			engagementSummaryValue = template.engagementSummary;
+		}
+	}
+
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		const formData = new FormData(e.target as HTMLFormElement);
@@ -115,6 +141,12 @@
 		formData.set('championTitle', championTitle);
 		formData.set('championContact', championContact);
 		formData.set('championEmail', championEmail);
+		formData.set('timeline', timelineValue);
+		formData.set('immediateNextStep', immediateNextStepValue);
+		formData.set('objectives', objectivesValue);
+		formData.set('initiatives', initiativesValue);
+		formData.set('engagementSummary', engagementSummaryValue);
+		formData.set('projectDuration', projectDurationValue);
 		await onsubmit(formData);
 	}
 </script>
@@ -123,6 +155,37 @@
 	<!-- Basic Info -->
 	<div class="space-y-4">
 		<h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">Basic Information</h3>
+
+		<div class="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+			<div class="flex flex-col gap-3">
+				<div>
+					<div class="text-sm font-semibold text-indigo-900">Solution Package Template</div>
+					<p class="text-xs text-indigo-700">
+						Pre-fill common Fabric workloads and engagement guidance for a standard motion.
+					</p>
+				</div>
+				<div class="flex flex-col sm:flex-row gap-2">
+					<select
+						class="flex-1 border border-indigo-200 rounded-lg px-3 py-2 text-sm bg-white"
+						bind:value={selectedTemplateId}
+					>
+						<option value="">Select a template (optional)</option>
+						{#each SOLUTION_PACKAGE_TEMPLATES as template}
+							<option value={template.id}>{template.name}</option>
+						{/each}
+					</select>
+					<Button type="button" variant="secondary" onclick={applySolutionTemplate} disabled={!selectedTemplateId}>
+						Apply Template
+					</Button>
+				</div>
+				{#if selectedTemplateId}
+					{@const selectedTemplate = SOLUTION_PACKAGE_TEMPLATES.find((t) => t.id === selectedTemplateId)}
+					{#if selectedTemplate}
+						<p class="text-xs text-indigo-700">{selectedTemplate.description}</p>
+					{/if}
+				{/if}
+			</div>
+		</div>
 
 		<Input
 			name="title"
@@ -197,6 +260,65 @@
 				placeholder="e.g., John Doe (Microsoft)"
 				value={opportunity?.partnerPic || ''}
 			/>
+		</div>
+
+		<div class="grid grid-cols-2 gap-4">
+			<Input
+				name="partnerOrg"
+				label="Partner Organization"
+				placeholder="e.g., SRKK / Microsoft Partner"
+				value={opportunity?.partnerOrg || ''}
+			/>
+
+			<Input
+				name="microsoftSellerName"
+				label="Microsoft Seller"
+				placeholder="e.g., Jane Smith"
+				value={opportunity?.microsoftSellerName || ''}
+			/>
+		</div>
+
+		<div class="grid grid-cols-2 gap-4">
+			<Input
+				name="microsoftSellerEmail"
+				label="Microsoft Seller Email"
+				type="email"
+				placeholder="seller@microsoft.com"
+				value={opportunity?.microsoftSellerEmail || ''}
+			/>
+
+			<Select
+				name="coSellStatus"
+				label="Co-sell Status"
+				options={[
+					{ value: '', label: 'Select co-sell status' },
+					...CO_SELL_STATUSES.map((s) => ({ value: s, label: s }))
+				]}
+				value={opportunity?.coSellStatus || ''}
+			/>
+		</div>
+
+		<div class="grid grid-cols-2 gap-4">
+			<Select
+				name="fundingStatus"
+				label="Funding Status"
+				options={[
+					{ value: '', label: 'Select funding status' },
+					...FUNDING_STATUSES.map((s) => ({ value: s, label: s }))
+				]}
+				value={opportunity?.fundingStatus || ''}
+			/>
+			<div>
+				<label for="coSellNotes" class="block text-sm font-medium text-gray-700 mb-1">Co-sell Notes</label>
+				<input
+					id="coSellNotes"
+					name="coSellNotes"
+					type="text"
+					placeholder="Submission, funding, blockers, actions"
+					value={opportunity?.coSellNotes || ''}
+					class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+				/>
+			</div>
 		</div>
 	</div>
 
@@ -351,19 +473,29 @@
 		</div>
 
 		<div class="grid grid-cols-2 gap-4">
-			<Input
-				name="timeline"
-				label="Timeline"
-				placeholder="e.g., April 2025"
-				value={opportunity?.timeline || ''}
-			/>
+			<div>
+				<label for="timeline" class="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
+				<input
+					id="timeline"
+					name="timeline"
+					type="text"
+					placeholder="e.g., April 2025"
+					bind:value={timelineValue}
+					class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+				/>
+			</div>
 
-			<Input
-				name="immediateNextStep"
-				label="Immediate Next Step"
-				placeholder="e.g., Schedule discovery call"
-				value={opportunity?.immediateNextStep || ''}
-			/>
+			<div>
+				<label for="immediateNextStep" class="block text-sm font-medium text-gray-700 mb-1">Immediate Next Step</label>
+				<input
+					id="immediateNextStep"
+					name="immediateNextStep"
+					type="text"
+					placeholder="e.g., Schedule discovery call"
+					bind:value={immediateNextStepValue}
+					class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+				/>
+			</div>
 		</div>
 	</div>
 
@@ -467,7 +599,7 @@
 					{ value: '', label: 'Select duration' },
 					...PROJECT_DURATIONS.map((d) => ({ value: d, label: d }))
 				]}
-				value={opportunity?.projectDuration || ''}
+				bind:value={projectDurationValue}
 			/>
 		</div>
 	</div>
@@ -484,9 +616,10 @@
 				id="objectives"
 				name="objectives"
 				rows="3"
+				bind:value={objectivesValue}
 				class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
 				placeholder="What are the customer's objectives?"
-			>{opportunity?.objectives || ''}</textarea>
+			></textarea>
 		</div>
 
 		<div>
@@ -510,9 +643,10 @@
 				id="initiatives"
 				name="initiatives"
 				rows="3"
+				bind:value={initiativesValue}
 				class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
 				placeholder="What solutions are we proposing?"
-			>{opportunity?.initiatives || ''}</textarea>
+			></textarea>
 		</div>
 
 		<div>
@@ -536,9 +670,10 @@
 				id="engagementSummary"
 				name="engagementSummary"
 				rows="3"
+				bind:value={engagementSummaryValue}
 				class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
 				placeholder="Summary of what's been discussed..."
-			>{opportunity?.engagementSummary || ''}</textarea>
+			></textarea>
 		</div>
 	</div>
 

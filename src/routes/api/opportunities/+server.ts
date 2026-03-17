@@ -35,6 +35,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // Lead & Partner Info
     const leadSource = formData.get("leadSource") as string;
     const partnerPic = formData.get("partnerPic") as string;
+    const partnerOrg = formData.get("partnerOrg") as string;
+    const microsoftSellerName = formData.get("microsoftSellerName") as string;
+    const microsoftSellerEmail = formData.get("microsoftSellerEmail") as string;
+    const coSellStatus = formData.get("coSellStatus") as string;
+    const fundingStatus = formData.get("fundingStatus") as string;
+    const coSellNotes = formData.get("coSellNotes") as string;
 
     // Authority (Decision Maker)
     const authorityName = formData.get("authorityName") as string;
@@ -103,6 +109,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         // Lead & Partner Info
         leadSource: leadSource || null,
         partnerPic: partnerPic || null,
+        partnerOrg: partnerOrg || null,
+        microsoftSellerName: microsoftSellerName || null,
+        microsoftSellerEmail: microsoftSellerEmail || null,
+        coSellStatus: coSellStatus || null,
+        fundingStatus: fundingStatus || null,
+        coSellNotes: coSellNotes || null,
         // Authority
         authorityName: authorityName || null,
         authorityTitle: authorityTitle || null,

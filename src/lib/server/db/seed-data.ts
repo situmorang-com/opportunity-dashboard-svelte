@@ -8,7 +8,8 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..', '..', '..', '..');
-const DATABASE_URL = process.env.DATABASE_URL || join(projectRoot, 'data', 'sqlite.db');
+const raw = process.env.DATABASE_URL || join(projectRoot, 'data', 'sqlite.db');
+const DATABASE_URL = raw.startsWith('file:') ? raw.replace(/^file:/, '') : raw;
 
 const sqlite = new Database(DATABASE_URL);
 const db = drizzle(sqlite);

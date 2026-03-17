@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button, Input, Avatar } from '$lib/components/ui';
+	import CommandPalette from './CommandPalette.svelte';
 	import type { User } from 'lucia';
 	import type { Snippet } from 'svelte';
 
@@ -48,6 +49,8 @@
 			{#if actions}
 				{@render actions()}
 			{/if}
+
+			<CommandPalette />
 
 			<!-- Search -->
 			{#if showSearch}

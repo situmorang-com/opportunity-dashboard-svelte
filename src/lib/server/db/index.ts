@@ -9,7 +9,9 @@ let _db: BetterSQLite3Database<typeof schema> | null = null;
 function getDatabase(): BetterSQLite3Database<typeof schema> {
 	if (!_db) {
 		// Use bracket notation to prevent Vite from inlining at build time
-		const DATABASE_URL = process.env['DATABASE_URL'] || 'data/sqlite.db';
+		const raw = process.env['DATABASE_URL'] || 'data/sqlite.db';
+		// Normalize file: URLs to filesystem paths for better-sqlite3
+		const DATABASE_URL = raw.startsWith('file:') ? raw.replace(/^file:/, '') : raw;
 		console.log('Connecting to database:', DATABASE_URL);
 
 		const sqlite = new Database(DATABASE_URL);

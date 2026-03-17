@@ -1,5 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type { Stage, Activity } from '$lib/server/db/schema';
+import type { DealHealth } from '$lib/server/deal-health';
 
 // Types for client-side use - flexible to handle different query shapes
 export type OpportunityWithRelations = {
@@ -22,6 +23,7 @@ export type OpportunityWithRelations = {
 	stage?: Stage | null;
 	owner?: { id: string; name: string; email?: string; avatarUrl?: string | null } | null;
 	activities?: Activity[];
+	health?: DealHealth;
 };
 
 export type StageWithOpportunities = Stage & {

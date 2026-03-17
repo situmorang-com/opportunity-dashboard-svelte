@@ -63,9 +63,11 @@
 						// Revert on error
 						item.stageId = oldStageId;
 						pipelineStore.updateOpportunityStage(item.id, oldStageId);
+						const message =
+							error instanceof Error ? error.message : 'Failed to update opportunity stage';
 						toastStore.add({
 							type: 'error',
-							message: 'Failed to update opportunity stage'
+							message
 						});
 					}
 				}

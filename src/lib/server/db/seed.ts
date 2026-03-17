@@ -2,7 +2,8 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { stages, users } from './schema';
 
-const DATABASE_URL = process.env.DATABASE_URL || 'data/sqlite.db';
+const raw = process.env.DATABASE_URL || 'data/sqlite.db';
+const DATABASE_URL = raw.startsWith('file:') ? raw.replace(/^file:/, '') : raw;
 
 const sqlite = new Database(DATABASE_URL);
 const db = drizzle(sqlite);
