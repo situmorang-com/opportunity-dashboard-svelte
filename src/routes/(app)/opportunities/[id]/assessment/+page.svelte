@@ -2,6 +2,7 @@
 	import { Badge, Button, Card } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import { DISCOVERY_CHECKLIST } from '$lib/constants';
+	import { toastStore } from '$lib/stores';
 
 	let { data } = $props();
 
@@ -13,6 +14,9 @@
 	// State
 	let saving = $state(false);
 	let lastSaved = $state<string | null>(null);
+	let showAutoDiscovery = $state(false);
+	let meetingNotes = $state('');
+	let extracting = $state(false);
 	let expandedSections = $state<Record<string, boolean>>({
 		technical: true,
 		business: false,
@@ -127,6 +131,43 @@
 			alert('Failed to save assessment');
 		} finally {
 			saving = false;
+		}
+	}
+
+	async function extractFromNotes() {
+		if (!meetingNotes.trim()) return;
+		extracting = true;
+		try {
+			const res = await fetch(`/api/opportunities/${opportunity.id}/ai-discovery`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ meetingNotes }),
+			});
+			if (!res.ok) throw new Error('Extraction failed');
+			const extracted = await res.json();
+
+			if (extracted.currentInfrastructure) form.currentInfrastructure = extracted.currentInfrastructure;
+			if (extracted.dataSources?.length) form.dataSources = extracted.dataSources;
+			if (extracted.integrationPoints) form.integrationPoints = extracted.integrationPoints;
+			if (extracted.securityRequirements) form.securityRequirements = extracted.securityRequirements;
+			if (extracted.complianceNeeds) form.complianceNeeds = extracted.complianceNeeds;
+			if (extracted.businessObjective) form.businessObjective = extracted.businessObjective;
+			if (extracted.expectedRoi) form.expectedRoi = extracted.expectedRoi;
+			if (extracted.successMetrics) form.successMetrics = extracted.successMetrics;
+			if (extracted.budgetRange) form.budgetRange = extracted.budgetRange;
+			if (extracted.assumptions) form.assumptions = extracted.assumptions;
+			if (extracted.constraints) form.constraints = extracted.constraints;
+			if (extracted.stakeholderAlignment) form.stakeholderAlignment = extracted.stakeholderAlignment;
+			if (extracted.requiredSkills) form.requiredSkills = extracted.requiredSkills;
+			if (extracted.technicalReadiness) form.technicalReadiness = extracted.technicalReadiness;
+
+			showAutoDiscovery = false;
+			meetingNotes = '';
+			toastStore.add({ type: 'success', message: `✨ AI filled ${extracted.filledCount || 'multiple'} fields from your meeting notes` });
+		} catch (e) {
+			toastStore.add({ type: 'error', message: 'Failed to extract from notes. Check API key configuration.' });
+		} finally {
+			extracting = false;
 		}
 	}
 
@@ -265,6 +306,47 @@
 
 		<!-- Right: Assessment Form -->
 		<div class="lg:col-span-2 space-y-4">
+
+			<!-- AI Auto-Discovery -->
+			<div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 overflow-hidden">
+				<button onclick={() => showAutoDiscovery = !showAutoDiscovery}
+					class="w-full flex items-center justify-between px-5 py-4 text-left">
+					<div class="flex items-center gap-3">
+						<span class="text-xl">✨</span>
+						<div>
+							<p class="font-semibold text-gray-900">Extract from Meeting Notes</p>
+							<p class="text-xs text-gray-500">Let AI pre-fill this assessment from your meeting notes</p>
+						</div>
+					</div>
+					<svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform {showAutoDiscovery ? 'rotate-180' : ''}"
+						fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+					</svg>
+				</button>
+				{#if showAutoDiscovery}
+					<div class="px-5 pb-5 border-t border-indigo-100">
+						<textarea
+							bind:value={meetingNotes}
+							placeholder="Paste your meeting notes here... Include anything discussed about infrastructure, pain points, budget, stakeholders, timeline, etc."
+							rows="6"
+							class="w-full mt-3 rounded-lg border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+						></textarea>
+						<div class="flex justify-end mt-3">
+							<button
+								onclick={extractFromNotes}
+								disabled={extracting || !meetingNotes.trim()}
+								class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+								{#if extracting}
+									<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+									Extracting...
+								{:else}
+									✨ Extract & Fill Form
+								{/if}
+							</button>
+						</div>
+					</div>
+				{/if}
+			</div>
 
 			<!-- Technical Assessment -->
 			<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

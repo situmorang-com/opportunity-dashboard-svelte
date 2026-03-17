@@ -324,6 +324,21 @@ export const worklistActions = sqliteTable(
   }),
 );
 
+// ==================== OPPORTUNITY DOCUMENTS ====================
+
+export const opportunityDocuments = sqliteTable('opportunity_documents', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  opportunityId: integer('opportunity_id')
+    .notNull()
+    .references(() => opportunities.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  url: text('url').notNull(),
+  documentType: text('document_type'),
+  notes: text('notes'),
+  addedBy: text('added_by').references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
 // ==================== RELATIONS ====================
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -378,6 +393,7 @@ export const opportunitiesRelations = relations(
       fields: [opportunities.ownerId],
       references: [users.id],
     }),
+    documents: many(opportunityDocuments),
     activities: many(activities),
     discoveryAssessment: many(discoveryAssessments),
   }),
@@ -419,6 +435,11 @@ export const worklistActionsRelations = relations(worklistActions, ({ one }) => 
   }),
 }));
 
+export const opportunityDocumentsRelations = relations(opportunityDocuments, ({ one }) => ({
+  opportunity: one(opportunities, { fields: [opportunityDocuments.opportunityId], references: [opportunities.id] }),
+  addedByUser: one(users, { fields: [opportunityDocuments.addedBy], references: [users.id] }),
+}));
+
 // ==================== TYPES ====================
 
 export type User = typeof users.$inferSelect;
@@ -439,6 +460,8 @@ export type WorklistAction = typeof worklistActions.$inferSelect;
 export type NewWorklistAction = typeof worklistActions.$inferInsert;
 export type DiscoveryAssessment = typeof discoveryAssessments.$inferSelect;
 export type NewDiscoveryAssessment = typeof discoveryAssessments.$inferInsert;
+export type OpportunityDocument = typeof opportunityDocuments.$inferSelect;
+export type NewOpportunityDocument = typeof opportunityDocuments.$inferInsert;
 
 // ==================== CONSTANTS ====================
 

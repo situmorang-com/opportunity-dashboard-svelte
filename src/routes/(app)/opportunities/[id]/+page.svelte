@@ -4,6 +4,8 @@
 	import { format, formatDistanceToNow } from 'date-fns';
 	import { goto } from '$app/navigation';
 	import { calculateFabricQualificationScore } from '$lib/utils/fabric-qualification';
+	import { getCompetitorCard } from '$lib/data/competitor-cards';
+	import { toastStore } from '$lib/stores';
 
 	let { data } = $props();
 
@@ -15,6 +17,14 @@
 	let quickNextStep = $state('');
 	let quickExpectedCloseDate = $state('');
 	let quickProbability = $state('');
+
+	// New feature states
+	let showBattleCard = $state(false);
+	let showAiCoach = $state(false);
+	let aiCoachData = $state<any>(null);
+	let aiCoachLoading = $state(false);
+	let aiCoachError = $state('');
+	let aiCoachTab = $state('risks');
 
 	// Destructure data reactively
 	const opportunity = $derived(data.opportunity);
@@ -47,6 +57,9 @@
 		quickExpectedCloseDate = opportunity.expectedCloseDate || '';
 		quickProbability = String(opportunity.probability ?? 0);
 	});
+
+	// Competitor battle card
+	const competitorCard = $derived(getCompetitorCard(opportunity.competitor || ''));
 
 	// Calculated fields
 	const expectedRevenue = $derived((opportunity.value || 0) * (opportunity.probability || 0) / 100);
@@ -238,6 +251,21 @@
 			quickSaving = false;
 		}
 	}
+
+	async function analyzeWithAI() {
+		aiCoachLoading = true;
+		aiCoachError = '';
+		try {
+			const res = await fetch(`/api/opportunities/${opportunity.id}/ai-coach`, { method: 'POST' });
+			if (!res.ok) throw new Error('Analysis failed');
+			aiCoachData = await res.json();
+			aiCoachTab = 'risks';
+		} catch (e) {
+			aiCoachError = 'Failed to analyze deal. Check your API key configuration.';
+		} finally {
+			aiCoachLoading = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -296,6 +324,9 @@
 				Back to Opportunities
 			</button>
 			<div class="flex items-center gap-2">
+				<a href="/opportunities/{opportunity.id}/proposal" class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors border-0">
+					📄 Proposal
+				</a>
 				<Button variant="secondary" onclick={() => (showEditModal = true)} class="bg-white/10 hover:bg-white/20 text-white border-0">
 					<svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -692,6 +723,100 @@
 				</ul>
 			</Card>
 
+		<!-- AI Deal Coach -->
+		<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+			<button onclick={() => showAiCoach = !showAiCoach}
+				class="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+				<div class="flex items-center gap-2">
+					<span class="text-lg">🤖</span>
+					<span class="font-semibold text-gray-900">AI Deal Coach</span>
+				</div>
+				<svg class="w-4 h-4 text-gray-400 transition-transform {showAiCoach ? 'rotate-180' : ''}"
+					fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+				</svg>
+			</button>
+			{#if showAiCoach}
+				<div class="px-5 pb-5 border-t border-gray-100">
+					{#if !aiCoachData && !aiCoachLoading}
+						<div class="text-center py-6">
+							<p class="text-sm text-gray-500 mb-3">Get AI-powered analysis of this deal including risk factors, next actions, and win strategy.</p>
+							<button onclick={analyzeWithAI}
+								class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+								✨ Analyze Deal
+							</button>
+						</div>
+					{:else if aiCoachLoading}
+						<div class="text-center py-6">
+							<div class="animate-spin w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto mb-3"></div>
+							<p class="text-sm text-gray-500">Analyzing deal with AI...</p>
+						</div>
+					{:else if aiCoachError}
+						<div class="text-center py-4">
+							<p class="text-sm text-red-500">{aiCoachError}</p>
+							<button onclick={analyzeWithAI} class="mt-2 text-xs text-indigo-600 hover:underline">Try again</button>
+						</div>
+					{:else if aiCoachData}
+						<div class="pt-4 space-y-4">
+							<p class="text-sm text-gray-700 italic border-l-4 border-indigo-200 pl-3">{aiCoachData.dealSummary}</p>
+							<div class="flex gap-1">
+								{#each [['risks', '⚠️ Risks'], ['actions', '🎯 Actions'], ['strategy', '🏆 Strategy']] as [tab, label]}
+									<button onclick={() => aiCoachTab = tab}
+										class="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
+											{aiCoachTab === tab ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'}">
+										{label}
+									</button>
+								{/each}
+							</div>
+							{#if aiCoachTab === 'risks'}
+								<div class="space-y-2">
+									{#each aiCoachData.riskFactors as r}
+										<div class="rounded-lg p-3 {r.severity === 'high' ? 'bg-red-50 border border-red-100' : r.severity === 'medium' ? 'bg-amber-50 border border-amber-100' : 'bg-gray-50 border border-gray-100'}">
+											<div class="flex items-center gap-2 mb-1">
+												<span class="text-xs font-semibold uppercase {r.severity === 'high' ? 'text-red-600' : r.severity === 'medium' ? 'text-amber-600' : 'text-gray-500'}">{r.severity}</span>
+												<span class="text-sm font-medium text-gray-800">{r.risk}</span>
+											</div>
+											<p class="text-xs text-gray-600">{r.mitigation}</p>
+										</div>
+									{/each}
+								</div>
+							{:else if aiCoachTab === 'actions'}
+								<div class="space-y-2">
+									{#each aiCoachData.nextActions as a}
+										<div class="flex gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+											<span class="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
+												{a.priority === 'high' ? 'bg-red-100 text-red-700' : a.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600'}">
+												{a.priority[0].toUpperCase()}
+											</span>
+											<div>
+												<p class="text-sm font-medium text-gray-800">{a.action}</p>
+												<p class="text-xs text-gray-500 mt-0.5">{a.rationale}</p>
+											</div>
+										</div>
+									{/each}
+								</div>
+							{:else if aiCoachTab === 'strategy'}
+								<div class="space-y-3">
+									<p class="text-sm text-gray-700 leading-relaxed">{aiCoachData.winStrategy}</p>
+									{#if aiCoachData.keyTalkingPoints?.length > 0}
+										<div>
+											<p class="text-xs font-semibold text-gray-600 mb-2">Key Talking Points:</p>
+											<ul class="space-y-1">
+												{#each aiCoachData.keyTalkingPoints as point}
+													<li class="flex gap-2 text-sm text-gray-700"><span class="text-indigo-400 mt-0.5">•</span>{point}</li>
+												{/each}
+											</ul>
+										</div>
+									{/if}
+								</div>
+							{/if}
+							<button onclick={analyzeWithAI} class="text-xs text-gray-400 hover:text-indigo-600">↻ Refresh analysis</button>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+
 			<!-- Fabric Details -->
 			<Card>
 				<h3 class="font-semibold text-gray-900 mb-4">Microsoft Fabric Details</h3>
@@ -722,7 +847,15 @@
 					</div>
 					<div class="bg-gray-50 rounded-xl p-3">
 						<p class="text-xs text-gray-500">Competitor</p>
-						<p class="font-semibold text-gray-900">{opportunity.competitor || '-'}</p>
+						<div class="flex items-center gap-2 flex-wrap">
+							<p class="font-semibold text-gray-900">{opportunity.competitor || '-'}</p>
+							{#if competitorCard}
+								<button onclick={() => showBattleCard = true}
+									class="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded-full font-medium hover:bg-red-200 transition-colors">
+									🥊 Battle Card
+								</button>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</Card>
@@ -958,10 +1091,10 @@
 			</Card>
 
 			<!-- Documents -->
-			{#if opportunity.documentsFolder}
-				<Card>
-					<h3 class="font-semibold text-gray-900 mb-3">Documents</h3>
-					<div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+			<Card>
+				<h3 class="font-semibold text-gray-900 mb-3">Documents</h3>
+				{#if opportunity.documentsFolder}
+					<div class="flex items-center gap-3 p-3 bg-gray-50 rounded-xl mb-2">
 						<div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
 							<svg class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -972,8 +1105,12 @@
 							<p class="text-xs text-gray-500">Document folder</p>
 						</div>
 					</div>
-				</Card>
-			{/if}
+				{/if}
+				<a href="/opportunities/{opportunity.id}/documents" class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+					<span class="text-sm font-medium text-gray-700">📁 Manage Documents</span>
+					<svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+				</a>
+			</Card>
 
 			<!-- Timestamps -->
 			<div class="text-xs text-gray-400 space-y-1">
@@ -983,6 +1120,67 @@
 		</div>
 	</div>
 </div>
+
+<!-- Battle Card Modal -->
+{#if showBattleCard && competitorCard}
+	<div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+		onclick={() => showBattleCard = false}
+		role="dialog" aria-modal="true" tabindex="-1"
+		onkeydown={(e) => e.key === 'Escape' && (showBattleCard = false)}>
+		<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+			onclick={(e) => e.stopPropagation()}
+			role="presentation">
+			<div class="sticky top-0 {competitorCard.bgColor} px-5 py-4 flex items-center justify-between border-b border-gray-200">
+				<div class="flex items-center gap-3">
+					<span class="text-2xl">{competitorCard.emoji}</span>
+					<div>
+						<h3 class="font-bold text-gray-900">{competitorCard.name} Battle Card</h3>
+						<p class="text-xs {competitorCard.textColor}">How to win against {competitorCard.name}</p>
+					</div>
+				</div>
+				<button onclick={() => showBattleCard = false} aria-label="Close battle card"
+					class="p-1.5 rounded-lg hover:bg-black/10 transition-colors">
+					<svg class="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+				</button>
+			</div>
+			<div class="p-5 space-y-5">
+				<div>
+					<h4 class="text-sm font-semibold text-green-700 mb-2">✅ Microsoft Fabric Advantages</h4>
+					<ul class="space-y-1.5">
+						{#each competitorCard.ourAdvantages as adv}
+							<li class="flex gap-2 text-sm text-gray-700"><span class="text-green-500 flex-shrink-0">✓</span>{adv}</li>
+						{/each}
+					</ul>
+				</div>
+				<div>
+					<h4 class="text-sm font-semibold text-amber-700 mb-2">⚠️ Their Strengths (Know These)</h4>
+					<ul class="space-y-1.5">
+						{#each competitorCard.theirStrengths as s}
+							<li class="flex gap-2 text-sm text-gray-700"><span class="text-amber-500 flex-shrink-0">!</span>{s}</li>
+						{/each}
+					</ul>
+				</div>
+				{#if competitorCard.commonObjections.length > 0}
+					<div>
+						<h4 class="text-sm font-semibold text-gray-700 mb-2">💬 Common Objections & Responses</h4>
+						<div class="space-y-3">
+							{#each competitorCard.commonObjections as obj}
+								<div class="rounded-lg bg-gray-50 p-3">
+									<p class="text-xs font-semibold text-gray-600 mb-1">"{obj.objection}"</p>
+									<p class="text-xs text-gray-700">{obj.response}</p>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+				<div class="bg-indigo-50 rounded-lg p-4">
+					<h4 class="text-sm font-semibold text-indigo-700 mb-2">🎯 Win Strategy</h4>
+					<p class="text-sm text-gray-700">{competitorCard.winStrategy}</p>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Edit Modal -->
 <Modal title="Edit Opportunity" open={showEditModal} onclose={() => (showEditModal = false)} size="xl">
